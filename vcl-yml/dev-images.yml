@@ -1,0 +1,58 @@
+service: Dev images
+domains:
+        - images-development.example.com
+settings:
+        general.default_host: fake-bukkit.s3-website-us-east-1.amazonaws.com
+        general.default_ttl: 3600
+backends:
+        default_backend:
+                hostname: fake-bukkit.s3-website-us-east-1.amazonaws.com
+                port: 80
+        legacy_backend:
+                hostname: legacy-bukkit.s3-website-us-east-1.amazonaws.com
+                port: 80
+                request_condition: pl_upload
+conditions:
+        request:
+                pl_upload:
+                        statement: 'req.url ~ "^/i/|^/assets|^/pages" || (req.url ~ "^/images" && req.url !~ "^/images/\d+/") || (req.url ~ "^/avatars/" && req.url !~ "^/avatars/\d+/")'
+                        priority: 10 
+        response:
+                cache_max-age:
+                        statement: resp.status < 400
+                        priority: 10
+        cache:
+                usual_cache_condition:
+                        statement: beresp.status < 400
+                        priority: 10
+                legacy_images:
+                        statement: 'req.url ~ "^/i/|^/assets|^/pages" || (req.url ~ "^/images" && req.url !~ "^/images/\d+/") || (req.url ~ "^/avatars/" && req.url !~ "^/avatars/\d+/")'
+                        priority: 5
+headers:
+        default_cache_control:
+                ignore_if_set: 1
+                priority: 10
+                dst: http.Cache-Control
+                src: '"max-age=301"'
+                type: response
+                response_condition: cache_max-age
+                action: set
+request_settings:
+        pl_upload:
+                xff: append
+                default_host: legacy-bukkit.s3-website-us-east-1.amazonaws.com
+                request_condition: pl_upload
+                max_stale_age: 60
+cache_settings:
+        usual_rule:
+                ttl: 300
+                stale_ttl: 86400
+                action: cache
+                cache_condition: usual_cache_condition
+        legacy_caching:
+                ttl: 1200
+                stale_ttl: 86400
+                action: cache
+                cache_condition: legacy_images
+vcl:
+        - sample_vcl

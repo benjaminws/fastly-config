@@ -1,0 +1,211 @@
+# automatically generated varnish config using the fastly configs. Useful in case
+# the need arises to throw up a varnish server to fill in for fastly's cdn for
+# some reason.
+
+<% if @do_full_vcl %>
+<% @backends.each do |backend_name, backend| %>
+backend <%= backend_name %> {
+  .host = "<%= backend["hostname"] %>";
+  .port = "<%= backend["port"] %>";
+  .connect_timeout = 600s;
+  .first_byte_timeout = 600s;
+  .between_bytes_timeout = 600s;
+  .max_connections = 800;
+}
+<% end %>
+
+<% @directors.each do |director_name, director| %>
+director <%= director_name %> round-robin {
+  <% director["backends"].each do |backend| %>
+  {
+    .backend = <%= backend %>;
+  }
+  <% end %>
+}
+<% end unless @directors.nil? %>
+
+<% end %><%# end full vcl for now %>
+
+sub vcl_recv {
+<% if @do_full_vcl %>
+  set req.http.Fastly-Orig-Host = req.http.host;
+  <% if @settings["general.default_host"] %>
+  set req.http.host = "<%= @settings["general.default_host"] %>";
+  <% end %>
+  <% @request_settings.each do |request_setting_name, request_setting| %>
+      # <%= request_setting_name %>
+      <% if request_setting["request_condition"] %>
+    if ( <%= @conditions["request"][request_setting["request_condition"]]["statement"] %> ) { 
+      <% end %>
+      <% request_setting_host = @backends.key("hostname" => request_setting["default_host"]) %>
+      <% if request_setting_host %>
+      set req.backend = <%= request_setting_host %>;
+      <% end %>
+
+    set req.grace = <%= request_setting["max_stale_age"] || 60 %>s;
+    set req.http.host = "<%= request_setting["default_host"] %>";
+    <% if request_setting["request_condition"] %>
+    }
+    <% end %>
+  <% end unless @request_settings.nil? %>
+<% end %>
+<%# end do_full_vcl for vcl_recv %>
+#FASTLY recv
+
+    if (req.request != "HEAD" && req.request != "GET" && req.request != "PURGE") {
+      return(pass);
+    }
+
+    return(lookup);
+}
+
+sub vcl_fetch {
+  <% if @do_full_vcl %>
+    <% @cache_settings.sort { |x,y| 
+      x_priority = @conditions["cache"][x[1]["cache_condition"]]["priority"] || 10 if x[1]["cache_condition"]
+      y_priority = @conditions["cache"][y[1]["cache_condition"]]["priority"] || 10 if y[1]["cache_condition"]
+      x_priority.to_i <=> y_priority.to_i }.each do |cache_setting_name, cache_setting| %>
+      # <%= cache_setting_name %>
+      <% if cache_setting["cache_condition"] %>
+  if ( <%= @conditions["cache"][cache_setting["cache_condition"]]["statement"] %> ) {
+      <% end %>
+	set beresp.ttl = <%= cache_setting["ttl"] || 300 %>s;
+	set beresp.grace = <%= cache_setting["stale_ttl"] || 3600 %>s;
+	return (<%= (cache_setting["action"] == "cache") ? "deliver" : cache_setting["action"] %>);
+      <% if cache_setting["cache_condition"] %>
+      }
+      <% end %>
+    <% end unless @cache_settings.nil? %>
+  <% end %>  
+#FASTLY fetch
+
+  if ((beresp.status == 500 || beresp.status == 503) && req.restarts < 1 && (req.request == "GET" || req.request == "HEAD")) {
+    restart;
+  }
+  
+  if(req.restarts > 0 ) {
+    set beresp.http.Fastly-Restarts = req.restarts;
+  }
+
+  if (beresp.http.Set-Cookie) {
+    set req.http.Fastly-Cachetype = "SETCOOKIE";
+    return (pass);
+  }
+
+  if (beresp.http.Cache-Control ~ "private") {
+    set req.http.Fastly-Cachetype = "PRIVATE";
+    return (pass);
+  }
+
+  if (beresp.status == 500 || beresp.status == 503) {
+    set req.http.Fastly-Cachetype = "ERROR";
+    set beresp.ttl = 1s;
+    set beresp.grace = 5s;
+    return (deliver);
+  }  
+
+  if (beresp.http.Expires || beresp.http.Surrogate-Control ~ "max-age" || beresp.http.Cache-Control ~"(s-maxage|max-age)") {
+    # keep the ttl here
+  } else {
+    # apply the default ttl
+    set beresp.ttl = 3600s;
+  }
+
+  return(deliver);
+}
+
+sub vcl_hit {
+
+#FASTLY hit
+
+  if (!obj.cacheable) {
+    return(pass);
+  }
+  return(deliver);
+}
+
+sub vcl_miss {
+#FASTLY miss
+  return(fetch);
+}
+
+sub vcl_deliver {
+<% if @do_full_vcl %>
+    {
+
+    if(!resp.http.X-Served-By) {
+      set resp.http.X-Served-By  = server.identity;
+    } else {
+      set resp.http.X-Served-By = resp.http.X-Served-By ", " server.identity;
+    }
+
+    if(!resp.http.X-Cache) {
+      if (obj.hits > 0) {
+        set resp.http.X-Cache = "HIT";
+      } else {
+        set resp.http.X-Cache = "MISS";
+      }
+    } else {
+      if (obj.hits > 0) {
+        set resp.http.X-Cache = resp.http.X-Cache ", HIT";
+      } else {
+        set resp.http.X-Cache = resp.http.X-Cache ", MISS";
+      }
+    }
+
+    if(!resp.http.X-Cache-Hits) {
+      set resp.http.X-Cache-Hits = obj.hits;
+    } else {
+      set resp.http.X-Cache-Hits = resp.http.X-Cache-Hits ", " obj.hits;
+    }
+
+  }
+  if(resp.status == 550) {
+    return(deliver);
+  }
+
+  <% @headers.sort { |x,y| x["priority"] <=> y["priority"] }.each do |header_name, header| %>
+    # <%= header_name %>
+    <% cond = header["response_condition"] || header["request_condition"] || header["cache_condition"]
+      kind = if header["response_condition"]
+	"response"
+      elsif header["request_condition"]
+	"request"
+      else
+	"cache"
+      end
+      ignore_if_set = (header["ignore_if_set"] == 1 ) ? header["ignore_if_set"] : false
+     %>
+    <% if cond %>
+    if ( <%= @conditions[kind][cond]["statement"] %> ) {
+    <% end %>
+      <% if ignore_if_set %>
+	if (!resp.<%= header["dst"] %>){
+      <% end %>
+	set resp.<%= header["dst"] %> = <%= header["src"] %>;
+      <% if ignore_if_set %>
+      }
+      <% end %>
+    <% if cond %>
+    }
+    <% end %>
+  <% end unless @headers.nil? %>
+<% end %>
+#FASTLY deliver
+  return(deliver);
+}
+
+sub vcl_error {
+<% if @do_full_vcl %>
+  {
+    if (obj.status == 550) {
+      return(deliver);
+    }
+  }
+<% end %>
+#FASTLY error
+}
+
+sub vcl_pass {
+#FASTLY pass
+}
