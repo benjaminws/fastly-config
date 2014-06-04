@@ -13,8 +13,7 @@ fastly-config
 
 ### Requirements
 
-At the moment, the latest fastly gem from github is needed to run this script.
-The gem on rubygems does not have the needed API features at this time.
+* [fastly gem](https://github.com/fastly/fastly-ruby) (v1.1.0+)
 
 ### Overview
 
