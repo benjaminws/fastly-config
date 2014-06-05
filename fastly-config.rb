@@ -207,9 +207,7 @@ class CDN
 
   def upload_vcl
     @settings["vcl"].each do |vcl_name|
-      @version.upload_vcl(vcl_name, File.read(@upload_vcl_path))
-      # add this to the api
-      @fastly.client.put("/service/#{@service.id}/version/#{@version.number}/vcl/#{vcl_name}/main")
+      @version.upload_main_vcl(vcl_name, File.read(@upload_vcl_path))
     end unless @settings["vcl"].nil?
   end
 
