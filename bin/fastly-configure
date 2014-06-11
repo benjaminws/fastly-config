@@ -1,0 +1,4 @@
+#!/usr/bin/env ruby
+require 'fastly/configure/cli'
+
+Fastly::Configure::CLI.start

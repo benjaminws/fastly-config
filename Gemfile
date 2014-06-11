@@ -1,3 +1,9 @@
 source 'https://rubygems.org'
 
-gem 'fastly', '~> 1.1.1'
+gemspec
+
+group :development, :test do
+  gem 'rake'
+  gem 'pry'
+  gem 'minitest'
+end
