@@ -30,7 +30,8 @@ class Fastly
       def configure_fastly
         @upload_vcl_path = File.join(@cdn_options[:output_directory], "#{@file_service_name}-upload.vcl")
         @template.create_vcl(@erb_path, @upload_vcl_path, false)
-        @fastly = Fastly.new(:user => @cdn_options[:user], :password => @cdn_options[:password])
+        @fastly = Fastly.new(:api_key => @cdn_options[:api_key])
+
         # look for the service, creating if it doesn't exist
         begin
           @service = @fastly.search_services(:name => @settings["service"])
@@ -82,9 +83,16 @@ class Fastly
         end
       end
 
+      def normalize_general_settings(settings)
+        new_settings = Hash.new
+        new_settings["general.default_host"] = settings["default_host"]
+        new_settings["general.default_ttl"] = settings["default_ttl"]
+        new_settings
+      end
+
       def configure_general_settings
         general_settings = @fastly.get_settings(@service.id, @version.number)
-        @settings["settings"] = sym_hash_keys(@settings["settings"])
+        @settings["settings"] = normalize_general_settings(@settings["settings"])
         general_settings.settings.merge!(@settings["settings"])
         @fastly.update_settings(general_settings)
       end

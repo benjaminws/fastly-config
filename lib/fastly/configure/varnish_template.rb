@@ -16,7 +16,7 @@ class Fastly
       def create_vcl(template_path, output_path, do_full_vcl)
         @do_full_vcl = do_full_vcl
         erb_template_file = File.open(template_path, 'r').read
-        template = ERB.new(erb_template_file)
+        template = ERB.new(erb_template_file, nil, '-')
         File.open(output_path, "w+") { |file| file.write(template.result(binding)) }
       end
     end

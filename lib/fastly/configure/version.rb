@@ -1,5 +1,5 @@
 class Fastly
   module Configure
-    VERSION = '0.1.0'
+    VERSION = '0.1.6'
   end
 end

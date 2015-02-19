@@ -14,14 +14,15 @@ class Fastly
         CDN.new(settings).build
       end
 
-      desc 'deploy [PATH TO YAML] [SERVICE NAME] [USER] [PASS] [OUTPUT DIRECTORY]',
+      desc 'deploy [PATH TO YAML] [SERVICE NAME] [API_KEY] [OUTPUT DIRECTORY]',
         'Builds a new VCL and deploys Fastly service configuration'
-      def deploy(path_to_yaml, service_name, user, password, output = './')
+      def deploy(path_to_yaml, service_name, api_key = nil, output = './')
+        api_key = ENV['FASTLY_API_KEY'] || api_key
+
         settings = { settings_file: path_to_yaml,
                      service_name: service_name,
                      operation: 'fastly',
-                     user: user,
-                     pass: password,
+                     api_key: api_key,
                      output_directory: output }
         CDN.new(settings).build
       end
