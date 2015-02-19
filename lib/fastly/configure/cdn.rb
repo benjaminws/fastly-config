@@ -57,8 +57,9 @@ class Fastly
         if @version.validate
           success = @version.activate!
           if !success
-      raise "Something went wrong trying to activate the new version."
+            raise "Something went wrong trying to activate the new version."
           end
+          puts "Sucessfully published #{@version}"
         else
           raise "Something is not right with the new version!"
         end
