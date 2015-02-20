@@ -59,7 +59,7 @@ class Fastly
           if !success
             raise "Something went wrong trying to activate the new version."
           end
-          puts "Sucessfully published #{@version}"
+          puts "Sucessfully published #{@version.number}"
         else
           raise "Something is not right with the new version!"
         end
