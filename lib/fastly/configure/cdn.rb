@@ -214,7 +214,7 @@ class Fastly
           s3_setting[:access_key] = ENV['AWS_ACCESS_KEY_ID'] || s3_setting[:access_key]
           s3_setting[:secret_key] = ENV['AWS_SECRET_ACCESS_KEY'] || s3_setting[:secret_key]
 
-          fastly.create_s3_logging(s3_setting)
+          @fastly.create_s3_logging(s3_setting)
         end unless @settings["s3_logging"].nil?
       end
 
