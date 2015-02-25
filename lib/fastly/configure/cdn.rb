@@ -110,8 +110,8 @@ class Fastly
           backend_options = sym_hash_keys(backend_options)
           backend = @fastly.create_backend(backend_options)
           unless request_condition.nil?
-      backend.request_condition = request_condition
-      backend.save!
+            backend.request_condition = request_condition
+            backend.save!
           end
         end
       end
@@ -160,6 +160,7 @@ class Fastly
           request_setting[:service_id] = @service.id
           request_setting[:version] = @version.number
           request_setting[:name] = request_name
+          request_settings.delete("extra_parameters")
           request_setting = sym_hash_keys(request_setting)
           @fastly.create_request_setting(request_setting)
         end unless @settings["request_settings"].nil?
